@@ -28,7 +28,7 @@ SPORT_MAP = {
 PROP_MARKET_MAP = {
     "nba": ["player_points", "player_rebounds", "player_assists"],
     "nfl": ["player_pass_yds", "player_rush_yds", "player_reception_yds"],
-    "mlb": ["batter_hits", "pitcher_strikeouts"],
+    "mlb": ["batter_hits", "pitcher_strikeouts", "batter_total_bases", "pitcher_outs", "batter_home_runs", "batter_rbis"],
     "nhl": ["player_goals", "player_assists"],
 }
 
@@ -130,15 +130,41 @@ def find_edges(pp_props, odds_games):
     edges = []
 
     stat_map = {
+        # NBA
         "Points": "player_points",
         "Rebounds": "player_rebounds",
         "Assists": "player_assists",
+        "Pts+Reb+Ast": "player_points",
+        "Pts+Ast": "player_points",
+        "Pts+Reb": "player_points",
+        "3-PT Made": "player_threes",
+        "Blocked Shots": "player_blocks",
+        "Steals": "player_steals",
+        # MLB
+        "Pitcher Strikeouts": "pitcher_strikeouts",
+        "Strikeouts": "pitcher_strikeouts",
+        "Hits Allowed": "pitcher_hits_allowed",
+        "Walks Allowed": "pitcher_walks",
+        "Earned Runs Allowed": "pitcher_earned_runs",
+        "Pitching Outs": "pitcher_outs",
+        "Batter Strikeouts": "batter_strikeouts",
+        "Hits": "batter_hits",
+        "Home Runs": "batter_home_runs",
+        "RBIs": "batter_rbis",
+        "Total Bases": "batter_total_bases",
+        "Runs Scored": "batter_runs_scored",
+        "Stolen Bases": "batter_stolen_bases",
+        # NFL
         "Passing Yards": "player_pass_yds",
         "Rushing Yards": "player_rush_yds",
         "Receiving Yards": "player_reception_yds",
-        "Strikeouts": "pitcher_strikeouts",
-        "Hits": "batter_hits",
+        "Receptions": "player_receptions",
+        "Passing TDs": "player_pass_tds",
+        "Rushing Attempts": "player_rush_attempts",
+        # NHL
         "Goals": "player_goals",
+        "Shots on Goal": "player_shots_on_goal",
+        "Points": "player_points",
     }
 
     sb_lookup = {}
