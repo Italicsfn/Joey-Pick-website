@@ -71,7 +71,7 @@ def parse_prizepicks(data):
 
 
 # ============================================
-# MLB STATS (Free Official API)
+# MLB STATS
 # ============================================
 MLB_STAT_MAP = {
     "Pitcher Strikeouts": ("pitching", "strikeOuts"),
@@ -114,7 +114,7 @@ async def get_mlb_stats(player_id, stat_group):
 
 
 # ============================================
-# NBA STATS (BallDontLie)
+# NBA STATS
 # ============================================
 NBA_STAT_MAP = {
     "Points": "pts",
@@ -154,7 +154,7 @@ async def get_nba_stats(player_id):
 
 
 # ============================================
-# NHL STATS (Free Official API)
+# NHL STATS
 # ============================================
 NHL_STAT_MAP = {
     "Goals": "goals",
@@ -206,18 +206,74 @@ def get_trend(values, line, over=True):
         return "➡️ Not enough data"
     recent = values[-3:]
     if over:
-        if all(v > line for v in recent): return "🔥 Hot — hitting OVER last 3"
-        if all(v < line for v in recent): return "❄️ Cold — missing OVER last 3"
+        if all(v > line for v in recent): return "🔥 Hot"
+        if all(v < line for v in recent): return "❄️ Cold"
     else:
-        if all(v < line for v in recent): return "🔥 Hot — hitting UNDER last 3"
-        if all(v > line for v in recent): return "❄️ Cold — missing UNDER last 3"
-    return "➡️ Mixed results"
+        if all(v < line for v in recent): return "🔥 Hot"
+        if all(v > line for v in recent): return "❄️ Cold"
+    return "➡️ Mixed"
 
 def confidence_label(hit_rate):
     if hit_rate >= 80: return "🔥 STRONG LEAN"
     elif hit_rate >= 65: return "✅ LEAN"
     elif hit_rate >= 50: return "⚠️ SLIGHT LEAN"
     else: return "❌ AVOID"
+
+def best_side(hit_rate_over, hit_rate_under):
+    """Determine the best side to pick"""
+    if hit_rate_over is None and hit_rate_under is None:
+        return None, None
+    if hit_rate_over is None:
+        return "UNDER", hit_rate_under
+    if hit_rate_under is None:
+        return "OVER", hit_rate_over
+    if hit_rate_over >= hit_rate_under:
+        return "OVER", hit_rate_over
+    return "UNDER", hit_rate_under
+
+
+async def get_player_values(player_name, league, stat_name):
+    """Get historical stat values for a player"""
+    values = []
+
+    if league == "MLB":
+        stat_info = MLB_STAT_MAP.get(stat_name)
+        if stat_info:
+            stat_group, stat_key = stat_info
+            player_id, _ = await get_mlb_player_id(player_name)
+            if player_id:
+                game_logs = await get_mlb_stats(player_id, stat_group)
+                for game in game_logs:
+                    val = game.get("stat", {}).get(stat_key)
+                    if val is not None:
+                        try: values.append(float(val))
+                        except: pass
+
+    elif league == "NBA":
+        stat_key = NBA_STAT_MAP.get(stat_name)
+        if stat_key and BALLDONTLIE_API_KEY:
+            player_id, _ = await get_nba_player_id(player_name)
+            if player_id:
+                game_logs = await get_nba_stats(player_id)
+                for game in game_logs:
+                    val = game.get(stat_key)
+                    if val is not None:
+                        try: values.append(float(val))
+                        except: pass
+
+    elif league == "NHL":
+        stat_key = NHL_STAT_MAP.get(stat_name)
+        if stat_key:
+            player_id, _ = await get_nhl_player_id(player_name)
+            if player_id:
+                game_logs = await get_nhl_stats(player_id)
+                for game in game_logs:
+                    val = game.get(stat_key)
+                    if val is not None:
+                        try: values.append(float(val))
+                        except: pass
+
+    return values
 
 
 # ============================================
@@ -279,133 +335,74 @@ async def prizepicks_player(ctx, *, player_name: str):
 
 
 @bot.command(name="edge")
-async def edge_command(ctx, *, query: str):
+async def edge_command(ctx, *, player_name: str):
     """
-    !edge PlayerName | Stat | Over or Under
-    Example: !edge Grant Holmes | Pitcher Strikeouts | Under
-    Example: !edge LeBron James | Points | Over
-    Example: !edge Connor McDavid | Goals | Over
+    Auto edge analysis — just type the player name!
+    !edge Grant Holmes
+    !edge LeBron James
+    !edge Connor McDavid
     """
-    parts = [p.strip() for p in query.split("|")]
-    if len(parts) < 2:
-        await ctx.send("❌ Format: `!edge PlayerName | Stat | Over or Under`\nExamples:\n`!edge Grant Holmes | Pitcher Strikeouts | Under`\n`!edge LeBron James | Points | Over`\n`!edge Connor McDavid | Goals | Over`")
-        return
+    msg = await ctx.send(f"🔍 Analyzing all props for **{player_name}**...")
 
-    player_name = parts[0]
-    stat_name = parts[1]
-    side = parts[2].lower().strip() if len(parts) > 2 else "over"
-    over = "over" in side
-
-    msg = await ctx.send(f"🔍 Analyzing **{player_name}** — {stat_name} {side.upper()}...")
-
-    # Get PrizePicks line
+    # Get all PrizePicks props for this player
     data = await fetch_prizepicks()
     all_props = parse_prizepicks(data) if data else []
-    pp_prop = None
-    for prop in all_props:
-        if player_name.lower() in prop["player"].lower() and stat_name.lower() in prop["stat"].lower():
-            pp_prop = prop
-            break
+    player_props = [p for p in all_props if player_name.lower() in p["player"].lower()]
 
-    if not pp_prop:
-        await msg.edit(content=f"❌ Could not find **{player_name} — {stat_name}** on PrizePicks right now.")
+    if not player_props:
+        await msg.edit(content=f"❌ **{player_name}** not found on PrizePicks right now.")
         return
 
-    line = pp_prop["line"]
-    league = pp_prop["league"].upper()
-    values = []
-    avg = None
-    hit_rate = None
-    actual_name = player_name
-
-    # ---- MLB ----
-    if league == "MLB":
-        stat_info = MLB_STAT_MAP.get(stat_name)
-        if stat_info:
-            stat_group, stat_key = stat_info
-            player_id, actual_name = await get_mlb_player_id(player_name)
-            if player_id:
-                game_logs = await get_mlb_stats(player_id, stat_group)
-                for game in game_logs:
-                    val = game.get("stat", {}).get(stat_key)
-                    if val is not None:
-                        try:
-                            values.append(float(val))
-                        except:
-                            pass
-
-    # ---- NBA ----
-    elif league == "NBA":
-        stat_key = NBA_STAT_MAP.get(stat_name)
-        if stat_key and BALLDONTLIE_API_KEY:
-            player_id, actual_name = await get_nba_player_id(player_name)
-            if player_id:
-                game_logs = await get_nba_stats(player_id)
-                for game in game_logs:
-                    val = game.get(stat_key)
-                    if val is not None:
-                        try:
-                            values.append(float(val))
-                        except:
-                            pass
-
-    # ---- NHL ----
-    elif league == "NHL":
-        stat_key = NHL_STAT_MAP.get(stat_name)
-        if stat_key:
-            player_id, actual_name = await get_nhl_player_id(player_name)
-            if player_id:
-                game_logs = await get_nhl_stats(player_id)
-                for game in game_logs:
-                    val = game.get(stat_key)
-                    if val is not None:
-                        try:
-                            values.append(float(val))
-                        except:
-                            pass
-
-    # ---- NFL ----
-    elif league == "NFL":
-        values = []  # NFL free stats limited — will show PP line only
-
-    # Build embed
-    hit_rate, avg = calc_hit_rate(values, line, over) if values else (None, None)
+    actual_player = player_props[0]["player"]
+    league = player_props[0]["league"].upper()
+    team = player_props[0]["team"]
 
     embed = discord.Embed(
-        title=f"📊 Edge Analysis — {pp_prop['player']}",
-        color=discord.Color.green() if hit_rate and hit_rate >= 65 else discord.Color.orange(),
+        title=f"📊 Edge Analysis — {actual_player}",
+        description=f"Team: {team} | League: {league}",
+        color=discord.Color.green(),
         timestamp=datetime.utcnow()
     )
-    embed.add_field(
-        name="🎯 PrizePicks Line",
-        value=f"**{stat_name} {side.upper()} {line}** | League: {league}",
-        inline=False
-    )
 
-    if hit_rate is not None and values:
-        trend = get_trend(values, line, over)
-        confidence = confidence_label(hit_rate)
+    found_any = False
+
+    for prop in player_props:
+        stat_name = prop["stat"]
+        line = prop["line"]
+
+        values = await get_player_values(actual_player, league, stat_name)
+
+        if not values:
+            embed.add_field(
+                name=f"📊 {stat_name} — Line: {line}",
+                value="⚠️ No historical stats available",
+                inline=False
+            )
+            continue
+
+        hit_rate_over, avg = calc_hit_rate(values, line, over=True)
+        hit_rate_under, _ = calc_hit_rate(values, line, over=False)
+        side, best_rate = best_side(hit_rate_over, hit_rate_under)
+        trend = get_trend(values, line, side == "OVER")
+        confidence = confidence_label(best_rate)
         recent_str = " → ".join([str(v) for v in values[-5:]])
 
         embed.add_field(
-            name="📈 Historical Stats (Last 10 Games)",
+            name=f"{'🔥' if best_rate >= 65 else '⚠️'} {stat_name} — Line: {line}",
             value=(
-                f"Season avg: **{avg}** | Line: **{line}**\n"
-                f"Hit rate {side.upper()}: **{hit_rate}%**\n"
-                f"Last 5 games: {recent_str}\n"
-                f"Trend: {trend}"
+                f"Season avg: **{avg}** | Best side: **{side}**\n"
+                f"Hit rate: **{best_rate}%** | Trend: {trend}\n"
+                f"Last 5: {recent_str}\n"
+                f"💡 {confidence} **{side} {line}**"
             ),
             inline=False
         )
+        found_any = True
+
+    if not found_any:
         embed.add_field(
-            name="💡 Recommendation",
-            value=f"{confidence} **{side.upper()} {line}**",
-            inline=False
-        )
-    else:
-        embed.add_field(
-            name="⚠️ Stats Unavailable",
-            value=f"Could not find historical stats for **{player_name}** in {league}.\n{'NFL stats require a paid API.' if league == 'NFL' else 'Check the player name spelling.'}",
+            name="⚠️ No Stats Found",
+            value=f"Could not find historical stats for **{actual_player}**.\nNFL stats require a paid API.",
             inline=False
         )
 
@@ -416,15 +413,15 @@ async def edge_command(ctx, *, query: str):
 @bot.command(name="pphelp")
 async def pp_help(ctx):
     embed = discord.Embed(title="🎯 PrizePicks Helper Commands", color=discord.Color.purple())
-    embed.add_field(name="!pp MLB", value="Show PrizePicks lines (NBA, NFL, MLB, NHL)", inline=False)
-    embed.add_field(name="!pplookup PlayerName", value="Look up a player\nExample: `!pplookup Shohei Ohtani`", inline=False)
+    embed.add_field(name="!pp MLB", value="Show PrizePicks lines\nWorks with: NBA, NFL, MLB, NHL", inline=False)
+    embed.add_field(name="!pplookup PlayerName", value="Look up a player's current lines\nExample: `!pplookup Shohei Ohtani`", inline=False)
     embed.add_field(
-        name="!edge PlayerName | Stat | Over/Under",
+        name="!edge PlayerName",
         value=(
-            "Analyze edge using historical stats\n"
-            "MLB: `!edge Grant Holmes | Pitcher Strikeouts | Under`\n"
-            "NBA: `!edge LeBron James | Points | Over`\n"
-            "NHL: `!edge Connor McDavid | Goals | Over`"
+            "Auto edge analysis — just type the name!\n"
+            "`!edge Grant Holmes`\n"
+            "`!edge LeBron James`\n"
+            "`!edge Connor McDavid`"
         ),
         inline=False
     )
