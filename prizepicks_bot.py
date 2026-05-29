@@ -2,13 +2,21 @@ import os
 import discord
 from discord.ext import commands
 import aiohttp
-import asyncio
 from datetime import datetime
 
 # ============================================
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY", "")
 # ============================================
+
+# PrizePicks league IDs
+LEAGUE_IDS = {
+    "nba": 7,
+    "nfl": 9,
+    "mlb": 2,
+    "nhl": 8,
+    "nba2": 3,  # backup
+}
 
 SPORT_MAP = {
     "nba": "basketball_nba",
@@ -17,16 +25,9 @@ SPORT_MAP = {
     "nhl": "icehockey_nhl",
 }
 
-PP_LEAGUE_MAP = {
-    "nba": "NBA",
-    "nfl": "NFL",
-    "mlb": "MLB",
-    "nhl": "NHL",
-}
-
 PROP_MARKET_MAP = {
     "nba": ["player_points", "player_rebounds", "player_assists"],
-    "nfl": ["player_pass_yds", "player_rush_yds", "player_reception_yds", "player_pass_tds"],
+    "nfl": ["player_pass_yds", "player_rush_yds", "player_reception_yds"],
     "mlb": ["batter_hits", "pitcher_strikeouts"],
     "nhl": ["player_goals", "player_assists"],
 }
@@ -36,26 +37,28 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-async def fetch_prizepicks(league=None):
-    """Fetch PrizePicks projections"""
-    url = "https://partner-api.prizepicks.com/projections?per_page=1000"
-    if league:
-        url += f"&league_id={league}"
-    
+async def fetch_prizepicks(league_id=None):
+    if league_id:
+        url = f"https://api.prizepicks.com/projections?league_id={league_id}&per_page=250&single_stat=true"
+    else:
+        url = "https://api.prizepicks.com/projections?per_page=500&single_stat=true"
+
     headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json"
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Referer": "https://prizepicks.com/",
+        "Origin": "https://prizepicks.com",
     }
-    
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as resp:
             if resp.status == 200:
                 return await resp.json()
+            print(f"PrizePicks API status: {resp.status}")
             return None
 
 
 async def fetch_odds_props(sport):
-    """Fetch sportsbook prop odds"""
     markets = PROP_MARKET_MAP.get(sport, [])
     if not markets:
         return []
@@ -81,13 +84,11 @@ def american_to_prob(odds):
     return 100 / (odds + 100) * 100
 
 
-def parse_prizepicks(data, league_filter=None):
-    """Parse PrizePicks projections into usable format"""
+def parse_prizepicks(data):
     props = []
     if not data or "data" not in data:
         return props
 
-    # Build player lookup from included
     players = {}
     included = data.get("included", [])
     for item in included:
@@ -95,37 +96,37 @@ def parse_prizepicks(data, league_filter=None):
             pid = item["id"]
             attrs = item.get("attributes", {})
             players[pid] = {
-                "name": attrs.get("display_name", "Unknown"),
-                "team": attrs.get("team", ""),
+                "name": attrs.get("display_name", attrs.get("name", "Unknown")),
+                "team": attrs.get("team", attrs.get("team_name", "")),
                 "league": attrs.get("league", ""),
             }
 
     for proj in data["data"]:
         attrs = proj.get("attributes", {})
-        league = attrs.get("league", "")
+        player_id = None
+        rels = proj.get("relationships", {})
+        new_player = rels.get("new_player", {}).get("data", {})
+        if new_player:
+            player_id = new_player.get("id")
 
-        if league_filter and league.upper() != league_filter.upper():
-            continue
-
-        player_id = proj.get("relationships", {}).get("new_player", {}).get("data", {}).get("id")
-        player = players.get(player_id, {})
-
+        player = players.get(player_id, {"name": "Unknown", "team": "", "league": ""})
         stat_type = attrs.get("stat_type", "")
         line = attrs.get("line_score", 0)
+        league = attrs.get("league", player.get("league", ""))
 
-        props.append({
-            "player": player.get("name", "Unknown"),
-            "team": player.get("team", ""),
-            "league": league,
-            "stat": stat_type,
-            "line": float(line),
-        })
+        if stat_type and line:
+            props.append({
+                "player": player["name"],
+                "team": player["team"],
+                "league": league,
+                "stat": stat_type,
+                "line": float(line),
+            })
 
     return props
 
 
-def find_edges(pp_props, odds_games, sport):
-    """Compare PrizePicks lines vs sportsbook lines and find edges"""
+def find_edges(pp_props, odds_games):
     edges = []
 
     stat_map = {
@@ -138,10 +139,8 @@ def find_edges(pp_props, odds_games, sport):
         "Strikeouts": "pitcher_strikeouts",
         "Hits": "batter_hits",
         "Goals": "player_goals",
-        "Assists + Goals": "player_assists",
     }
 
-    # Build sportsbook lookup
     sb_lookup = {}
     for game in odds_games:
         for bookmaker in game.get("bookmakers", [])[:2]:
@@ -172,35 +171,26 @@ def find_edges(pp_props, odds_games, sport):
 
         sb_key = f"{player.lower()}_{market_key}"
         sb_outcomes = sb_lookup.get(sb_key, [])
-
         if not sb_outcomes:
             continue
 
-        # Find the over outcome from sportsbooks
         over_outcomes = [o for o in sb_outcomes if o["side"].lower() == "over"]
-        under_outcomes = [o for o in sb_outcomes if o["side"].lower() == "under"]
-
         if not over_outcomes:
             continue
 
-        # Get best over line from sportsbooks
         best_over = min(over_outcomes, key=lambda x: x["point"])
         sb_line = best_over["point"]
         sb_price = best_over["price"]
         sb_prob = american_to_prob(sb_price)
-
-        # Find edge
         line_diff = pp_line - sb_line
 
         if line_diff > 0.5:
-            # PP line is HIGHER than sportsbook = take UNDER on PP
             edge_type = "UNDER"
-            edge_desc = f"PP line ({pp_line}) is HIGHER than books ({sb_line}) → Take UNDER"
+            edge_desc = f"PP line ({pp_line}) HIGHER than books ({sb_line})"
             edge_score = line_diff
         elif line_diff < -0.5:
-            # PP line is LOWER than sportsbook = take OVER on PP
             edge_type = "OVER"
-            edge_desc = f"PP line ({pp_line}) is LOWER than books ({sb_line}) → Take OVER"
+            edge_desc = f"PP line ({pp_line}) LOWER than books ({sb_line})"
             edge_score = abs(line_diff)
         else:
             continue
@@ -218,7 +208,6 @@ def find_edges(pp_props, odds_games, sport):
             "sb_price": sb_price,
         })
 
-    # Sort by biggest edge
     edges.sort(key=lambda x: x["edge_score"], reverse=True)
     return edges[:10]
 
@@ -229,37 +218,40 @@ async def on_ready():
 
 
 @bot.command(name="pp")
-async def prizepicks_lines(ctx, *, league: str = "NBA"):
-    """Show current PrizePicks lines: !pp NBA"""
-    league = league.upper()
-    msg = await ctx.send(f"🔍 Fetching PrizePicks lines for **{league}**...")
+async def prizepicks_lines(ctx, *, league: str = "MLB"):
+    league_upper = league.upper()
+    league_lower = league.lower()
+    league_id = LEAGUE_IDS.get(league_lower)
 
-    data = await fetch_prizepicks()
+    msg = await ctx.send(f"🔍 Fetching PrizePicks lines for **{league_upper}**...")
+
+    data = await fetch_prizepicks(league_id)
     if not data:
-        await msg.edit(content="❌ Could not fetch PrizePicks data. Try again!")
+        await msg.edit(content=f"❌ Could not fetch PrizePicks data. Try again later!")
         return
 
-    props = parse_prizepicks(data, league)
+    props = parse_prizepicks(data)
+    filtered = [p for p in props if league_upper in p["league"].upper()] if not league_id else props
 
-    if not props:
-        await msg.edit(content=f"❌ No props found for **{league}** right now.")
+    if not filtered:
+        await msg.edit(content=f"❌ No props found for **{league_upper}** right now. Season may be inactive.")
         return
 
     embed = discord.Embed(
-        title=f"🎯 PrizePicks — {league} Lines",
+        title=f"🎯 PrizePicks — {league_upper} Lines",
         color=discord.Color.purple(),
         timestamp=datetime.utcnow()
     )
-    embed.set_footer(text="PrizePicks current projections")
+    embed.set_footer(text=f"PrizePicks current projections | {len(filtered)} props found")
 
-    # Group by stat
     stat_groups = {}
-    for prop in props[:30]:
+    for prop in filtered:
         stat = prop["stat"]
         if stat not in stat_groups:
             stat_groups[stat] = []
         stat_groups[stat].append(prop)
 
+    count = 0
     for stat, stat_props in list(stat_groups.items())[:5]:
         lines = []
         for p in stat_props[:6]:
@@ -269,13 +261,13 @@ async def prizepicks_lines(ctx, *, league: str = "NBA"):
             value="\n".join(lines),
             inline=False
         )
+        count += 1
 
     await msg.edit(content=None, embed=embed)
 
 
 @bot.command(name="pplookup")
 async def prizepicks_player(ctx, *, player_name: str):
-    """Look up a specific player on PrizePicks: !pplookup LeBron James"""
     msg = await ctx.send(f"🔍 Looking up **{player_name}** on PrizePicks...")
 
     data = await fetch_prizepicks()
@@ -296,10 +288,7 @@ async def prizepicks_player(ctx, *, player_name: str):
         description=f"Team: {player_props[0]['team']} | League: {player_props[0]['league']}"
     )
 
-    lines = []
-    for prop in player_props:
-        lines.append(f"**{prop['stat']}**: {prop['line']}")
-
+    lines = [f"**{prop['stat']}**: {prop['line']}" for prop in player_props]
     embed.add_field(name="📊 Current Lines", value="\n".join(lines), inline=False)
     embed.set_footer(text="PrizePicks current projections")
 
@@ -307,28 +296,27 @@ async def prizepicks_player(ctx, *, player_name: str):
 
 
 @bot.command(name="edge")
-async def find_edge(ctx, *, sport: str = "NBA"):
-    """Find edges between PrizePicks and sportsbooks: !edge NBA"""
-    sport = sport.lower()
-    if sport not in SPORT_MAP:
-        await ctx.send(f"❌ Sport not supported. Use: {', '.join(SPORT_MAP.keys()).upper()}")
+async def find_edge(ctx, *, sport: str = "MLB"):
+    sport_lower = sport.lower()
+    if sport_lower not in SPORT_MAP:
+        await ctx.send(f"❌ Use: {', '.join(SPORT_MAP.keys()).upper()}")
         return
 
-    msg = await ctx.send(f"🔍 Analyzing edges for **{sport.upper()}**... this may take a moment!")
+    msg = await ctx.send(f"🔍 Finding edges for **{sport.upper()}**...")
 
-    pp_data = await fetch_prizepicks()
-    odds_data = await fetch_odds_props(sport)
+    league_id = LEAGUE_IDS.get(sport_lower)
+    pp_data = await fetch_prizepicks(league_id)
+    odds_data = await fetch_odds_props(sport_lower)
 
     if not pp_data:
         await msg.edit(content="❌ Could not fetch PrizePicks data.")
         return
 
-    league = PP_LEAGUE_MAP[sport]
-    pp_props = parse_prizepicks(pp_data, league)
-    edges = find_edges(pp_props, odds_data, sport)
+    pp_props = parse_prizepicks(pp_data)
+    edges = find_edges(pp_props, odds_data)
 
     if not edges:
-        await msg.edit(content=f"❌ No edges found for **{sport.upper()}** right now. Lines may match or no games today.")
+        await msg.edit(content=f"❌ No edges found for **{sport.upper()}** right now.")
         return
 
     embed = discord.Embed(
@@ -344,9 +332,8 @@ async def find_edge(ctx, *, sport: str = "NBA"):
         embed.add_field(
             name=f"{'✅' if edge['edge_type'] == 'OVER' else '🔻'} {edge['player']} — {edge['stat']} {edge['edge_type']}",
             value=(
-                f"PrizePicks: **{edge['pp_line']}**\n"
-                f"Sportsbooks: **{edge['sb_line']}** ({price_str}) — {edge['sb_prob']}%\n"
-                f"📊 {edge['edge_desc']}"
+                f"PrizePicks: **{edge['pp_line']}** | Books: **{edge['sb_line']}** ({price_str})\n"
+                f"📊 {edge['edge_desc']} | {edge['sb_prob']}% implied prob"
             ),
             inline=False
         )
@@ -356,13 +343,10 @@ async def find_edge(ctx, *, sport: str = "NBA"):
 
 @bot.command(name="pphelp")
 async def pp_help(ctx):
-    embed = discord.Embed(
-        title="🎯 PrizePicks Helper Commands",
-        color=discord.Color.purple()
-    )
-    embed.add_field(name="!pp NBA", value="Show all current PrizePicks NBA lines", inline=False)
-    embed.add_field(name="!pplookup PlayerName", value="Look up a specific player's lines\nExample: `!pplookup LeBron James`", inline=False)
-    embed.add_field(name="!edge NBA", value="Find edges between PrizePicks and sportsbooks\nWorks with: NBA, NFL, MLB, NHL", inline=False)
+    embed = discord.Embed(title="🎯 PrizePicks Helper Commands", color=discord.Color.purple())
+    embed.add_field(name="!pp MLB", value="Show PrizePicks lines (NBA, NFL, MLB, NHL)", inline=False)
+    embed.add_field(name="!pplookup PlayerName", value="Look up a specific player\nExample: `!pplookup Shohei Ohtani`", inline=False)
+    embed.add_field(name="!edge MLB", value="Find edges vs sportsbooks\nWorks with: NBA, NFL, MLB, NHL", inline=False)
     await ctx.send(embed=embed)
 
 
