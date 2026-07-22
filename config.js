@@ -37,6 +37,7 @@ export const otherWorks = {
     { id: '1xuPip9SKf6mdQc2h_Xw5pD_57GSWBIVv' },
     { id: '1WiyJToRV6IKN_gwT6jlKwhI2OsH_szzh' },
     { id: '1rZ5HaTzMbzm4LBjyYpiMyezS_km7MguA' },
+    { id: '1No_H_5c8mqOMg_6yALKlziSSCZr4J0EN' },
   ],
 }
 
