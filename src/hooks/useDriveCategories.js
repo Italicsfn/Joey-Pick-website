@@ -25,21 +25,24 @@ export function useDriveCategories() {
     setStatus('loading')
     ;(async () => {
       const results = await Promise.all(
-        folders.map(async (folder) => {
+        folders.map(async (entry) => {
+          // A category is backed by one folder (`id`) or several (`ids`).
+          const ids = entry.ids || [entry.id]
+          const catId = ids[0]
           try {
-            const [name, files] = await Promise.all([
-              folder.name
-                ? Promise.resolve(folder.name)
-                : fetchFolderName(folder.id, apiKey),
-              listFolderImages(folder.id, apiKey),
-            ])
-            const photos = files.map((f) => ({
+            // Merged categories require a `name`; single folders can borrow
+            // the folder's own name from Drive.
+            const name = entry.name || (await fetchFolderName(ids[0], apiKey))
+            const fileGroups = await Promise.all(
+              ids.map((id) => listFolderImages(id, apiKey)),
+            )
+            const photos = fileGroups.flat().map((f) => ({
               src: driveImage(f.id, 1600),
               alt: f.name.replace(/\.[^.]+$/, ''),
             }))
-            return { id: folder.id, name, photos: shuffle ? shuffled(photos) : photos }
+            return { id: catId, name, photos: shuffle ? shuffled(photos) : photos }
           } catch (err) {
-            console.error(`Failed to load Drive folder ${folder.id}:`, err)
+            console.error(`Failed to load Drive folder(s) ${ids.join(', ')}:`, err)
             return null
           }
         }),

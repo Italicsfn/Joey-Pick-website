@@ -30,14 +30,21 @@ export const otherWorks = {
   apiKey: 'AIzaSyDM_LGPP4uOy4vhCb-cMVzjw8hYpp050iM',
   // Shuffle photos within each section for a fresh, varied mix each visit.
   shuffle: true,
-  // Each PUBLIC Drive folder = one section. Titled after the folder name.
+  // Each entry = one category tab. Use `id` for a single folder, or `ids` +
+  // `name` to merge multiple folders into one category.
   folders: [
-    { id: '1n0sUen9y3CEZRledl-x97Rg-p6Nolz6H' },
-    { id: '15yUDNUcPENYjrI-Q-MHshnNwXgL5tftt' },
-    { id: '1xuPip9SKf6mdQc2h_Xw5pD_57GSWBIVv' },
-    { id: '1WiyJToRV6IKN_gwT6jlKwhI2OsH_szzh' },
-    { id: '1rZ5HaTzMbzm4LBjyYpiMyezS_km7MguA' },
-    { id: '1No_H_5c8mqOMg_6yALKlziSSCZr4J0EN' },
+    { id: '1n0sUen9y3CEZRledl-x97Rg-p6Nolz6H' }, // Basketball
+    { id: '15yUDNUcPENYjrI-Q-MHshnNwXgL5tftt' }, // Baseball
+    {
+      // Two "Football" folders combined into one tab.
+      name: 'Football',
+      ids: [
+        '1xuPip9SKf6mdQc2h_Xw5pD_57GSWBIVv',
+        '1WiyJToRV6IKN_gwT6jlKwhI2OsH_szzh',
+      ],
+    },
+    { id: '1rZ5HaTzMbzm4LBjyYpiMyezS_km7MguA' }, // Soccer
+    { id: '1No_H_5c8mqOMg_6yALKlziSSCZr4J0EN' }, // Car
   ],
 }
 
