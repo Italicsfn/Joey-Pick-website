@@ -59,30 +59,39 @@ npm run preview
 
 ## "Other Works" — auto-loading photos from Google Drive
 
-There's a second gallery section that loads photos straight from a **public Google
-Drive folder**. Once it's set up, you never touch the code: just drop photos into
-the Drive folder and they appear on the site automatically.
+Below the main gallery there's an **"Other Works"** area that loads photos straight
+from **public Google Drive folders**. Each folder becomes its own titled section
+(great for one folder per sport/category), and photos are shuffled for a fresh mix
+on each visit. Once it's set up you never touch the code again — just drop photos
+into a Drive folder and they appear on the site automatically.
 
 **One-time setup:**
 
-1. **Make a Drive folder public.** Create a folder in Google Drive, add your photos,
-   then right-click it → **Share** → set **"Anyone with the link" → Viewer**.
-2. **Grab the folder ID** from the share link — it's the long code after `/folders/`:
+1. **Share each folder publicly.** In Google Drive, right-click a folder → **Share**
+   → set **"Anyone with the link" → Viewer**. The section title comes from the
+   folder's name automatically (so name the folder e.g. `Basketball`).
+2. **List your folders in `config.js`** under `otherWorks.folders`. Grab each folder
+   ID — the long code after `/folders/` in the share link:
    ```
    https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUv?usp=sharing
                                            └──────── folder ID ────────┘
    ```
-   Put it in the `otherWorks.folderIds` list in `config.js`.
-3. **Create a free Google API key:**
+   ```js
+   folders: [
+     { id: '1AbCdEfGhIjKlMnOpQrStUv' },              // titled after the folder
+     { id: '9ZyXwVuTsRqPoNmLkJiHgF', name: 'Track' } // ...or override the title
+   ]
+   ```
+3. **Create one free Google API key** and paste it into `otherWorks.apiKey`:
    - Go to <https://console.cloud.google.com/> and create a project (any name).
    - **APIs & Services → Library →** search **"Google Drive API" → Enable**.
    - **APIs & Services → Credentials → Create credentials → API key.** Copy it.
    - (Recommended) Click the key → under **API restrictions** limit it to
      "Google Drive API", and under **Website restrictions** add your site's URL.
-   - Paste the key into `otherWorks.apiKey` in `config.js`.
 
-That's it. Leave `apiKey` as `''` to hide the section entirely. To add more photos
-later, just drop them in the Drive folder — no commit needed.
+That's it. Leave `apiKey` as `''` to hide the whole section. Set `shuffle: false`
+to show photos in filename order instead of a random mix. To add more photos later,
+just drop them in the Drive folder — no commit needed.
 
 > Note: Google Drive isn't a dedicated image host, so these photos may load a little
 > slower than the ones in `public/photos`, and very high traffic can be rate-limited

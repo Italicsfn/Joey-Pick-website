@@ -3,7 +3,18 @@ import { otherWorks } from '../../config.js'
 import Gallery from './Gallery.jsx'
 import Lightbox from './Lightbox.jsx'
 
-// List every image in a public Drive folder via the Drive API (paginated).
+const DRIVE = 'https://www.googleapis.com/drive/v3'
+
+// Look up a folder's display name (used as the section title).
+async function fetchFolderName(folderId, apiKey) {
+  const params = new URLSearchParams({ key: apiKey, fields: 'name' })
+  const res = await fetch(`${DRIVE}/files/${folderId}?${params}`)
+  if (!res.ok) throw new Error(`Drive API returned ${res.status}`)
+  const data = await res.json()
+  return data.name || 'Untitled'
+}
+
+// List every image in a public Drive folder (handles pagination).
 async function listFolderImages(folderId, apiKey) {
   const files = []
   let pageToken = ''
@@ -16,7 +27,7 @@ async function listFolderImages(folderId, apiKey) {
       pageSize: '1000',
     })
     if (pageToken) params.set('pageToken', pageToken)
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`)
+    const res = await fetch(`${DRIVE}/files?${params}`)
     if (!res.ok) throw new Error(`Drive API returned ${res.status}`)
     const data = await res.json()
     files.push(...(data.files || []))
@@ -29,66 +40,62 @@ async function listFolderImages(folderId, apiKey) {
 const driveImage = (id, width) =>
   `https://drive.google.com/thumbnail?id=${id}&sz=w${width}`
 
-export default function OtherWorks() {
-  const { title, apiKey, folderIds } = otherWorks
-  const enabled = Boolean(apiKey) && Array.isArray(folderIds) && folderIds.length > 0
+// Fisher–Yates shuffle (returns a new array; does not mutate input).
+function shuffled(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
 
+// One folder -> one titled, shuffled gallery with its own lightbox.
+function CategorySection({ folder, apiKey, shuffle }) {
+  const [title, setTitle] = useState(folder.name || '')
   const [photos, setPhotos] = useState([])
-  const [status, setStatus] = useState('idle') // idle | loading | error | done
+  const [status, setStatus] = useState('loading') // loading | error | done
   const [active, setActive] = useState(null)
 
   useEffect(() => {
-    if (!enabled) return
     let cancelled = false
     setStatus('loading')
     ;(async () => {
       try {
-        const collected = []
-        for (const id of folderIds) {
-          const files = await listFolderImages(id, apiKey)
-          for (const f of files) {
-            collected.push({
-              src: driveImage(f.id, 1600),
-              alt: f.name.replace(/\.[^.]+$/, ''),
-            })
-          }
-        }
+        const [name, files] = await Promise.all([
+          folder.name ? Promise.resolve(folder.name) : fetchFolderName(folder.id, apiKey),
+          listFolderImages(folder.id, apiKey),
+        ])
+        const mapped = files.map((f) => ({
+          src: driveImage(f.id, 1600),
+          alt: f.name.replace(/\.[^.]+$/, ''),
+        }))
         if (!cancelled) {
-          setPhotos(collected)
+          setTitle(name)
+          setPhotos(shuffle ? shuffled(mapped) : mapped)
           setStatus('done')
         }
       } catch (err) {
-        console.error('Failed to load Drive photos:', err)
+        console.error(`Failed to load Drive folder ${folder.id}:`, err)
         if (!cancelled) setStatus('error')
       }
     })()
     return () => {
       cancelled = true
     }
-    // folderIds is a small array from config; stringify for a stable dep.
-  }, [enabled, apiKey, JSON.stringify(folderIds)])
+  }, [folder.id, folder.name, apiKey, shuffle])
 
-  // Section is hidden entirely until configured with an API key + folder.
-  if (!enabled) return null
+  // Skip folders that error out or have no photos, so the page stays clean.
+  if (status === 'error') return null
+  if (status === 'done' && photos.length === 0) return null
 
   return (
-    <section id="other-works" className="section">
-      <h2 className="section__title">{title}</h2>
+    <div className="category">
+      <h3 className="category__title">{title || '…'}</h3>
 
-      {status === 'loading' && <p className="gallery__empty">Loading photos…</p>}
-
-      {status === 'error' && (
-        <p className="gallery__empty">
-          Couldn’t load photos from Google Drive. Make sure the folder is shared
-          as “Anyone with the link” and the API key is valid.
-        </p>
-      )}
-
-      {status === 'done' && photos.length === 0 && (
-        <p className="gallery__empty">No photos found in the Drive folder yet.</p>
-      )}
-
-      {status === 'done' && photos.length > 0 && (
+      {status === 'loading' ? (
+        <p className="gallery__empty">Loading photos…</p>
+      ) : (
         <Gallery photos={photos} onSelect={setActive} />
       )}
 
@@ -101,6 +108,28 @@ export default function OtherWorks() {
           onPrev={() => setActive((i) => (i - 1 + photos.length) % photos.length)}
         />
       )}
+    </div>
+  )
+}
+
+export default function OtherWorks() {
+  const { title, apiKey, shuffle, folders } = otherWorks
+  const enabled = Boolean(apiKey) && Array.isArray(folders) && folders.length > 0
+
+  // Section stays hidden until an API key + at least one folder are configured.
+  if (!enabled) return null
+
+  return (
+    <section id="other-works" className="section">
+      <h2 className="section__title">{title}</h2>
+      {folders.map((folder) => (
+        <CategorySection
+          key={folder.id}
+          folder={folder}
+          apiKey={apiKey}
+          shuffle={shuffle}
+        />
+      ))}
     </section>
   )
 }

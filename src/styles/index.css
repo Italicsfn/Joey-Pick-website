@@ -127,6 +127,18 @@ a {
   border-top: 1px solid var(--border);
 }
 
+.category {
+  margin-bottom: clamp(28px, 5vw, 52px);
+}
+
+.category__title {
+  margin: 0 0 clamp(12px, 2vw, 18px);
+  font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+  font-weight: 600;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
 /* ===========================================================================
    Masonry gallery (CSS columns)
    =========================================================================== */

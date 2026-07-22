@@ -10,26 +10,33 @@ export const site = {
 }
 
 // ----------------------------------------------------------------------------
-//  "OTHER WORKS" — auto-loads photos from a public Google Drive folder.
-//  Drop photos into the Drive folder and they show up on the site. No uploads,
-//  no editing this list. Leave `apiKey` empty to hide this section entirely.
+//  "OTHER WORKS" — auto-loads photos from PUBLIC Google Drive folders.
+//  Each folder below becomes its own titled section (e.g. one per sport).
+//  Drop photos into a Drive folder and they show up on the site automatically —
+//  no uploads, no editing this file.
 //
-//  ONE-TIME SETUP (see README for step-by-step):
-//   1. Put photos in a Google Drive folder, then Share it as
-//      "Anyone with the link" (Viewer).
-//   2. Copy the folder ID from the share link:
-//        https://drive.google.com/drive/folders/THIS_LONG_ID_HERE?usp=sharing
-//      ...and add it to `folderIds` below.
-//   3. Create a free Google API key with the Drive API enabled, paste as apiKey.
+//  ONE-TIME SETUP (see README for click-by-click steps):
+//   1. Share each Drive folder as "Anyone with the link" (Viewer).
+//   2. Create ONE free Google API key (Drive API enabled) and paste it as
+//      `apiKey` below. Until this is set, the whole section stays hidden.
+//
+//  Section titles come from the Drive folder's own name automatically. To
+//  override a title, add a `name:` — e.g. { id: '...', name: 'Basketball' }.
 // ----------------------------------------------------------------------------
 export const otherWorks = {
-  // Heading shown above this section, and its nav link label.
+  // Heading shown above the whole area, and its nav link label.
   title: 'Other Works',
-  // Free Google API key (Drive API enabled). Empty = section hidden.
+  // Free Google API key with the Drive API enabled. Empty = section hidden.
   apiKey: '',
-  // One or more PUBLIC Drive folder IDs. Photos load in filename order.
-  folderIds: [
-    // 'paste-your-folder-id-here',
+  // Shuffle photos within each section for a fresh, varied mix each visit.
+  shuffle: true,
+  // Each PUBLIC Drive folder = one section. Titled after the folder name.
+  folders: [
+    { id: '1n0sUen9y3CEZRledl-x97Rg-p6Nolz6H' },
+    { id: '15yUDNUcPENYjrI-Q-MHshnNwXgL5tftt' },
+    { id: '1xuPip9SKf6mdQc2h_Xw5pD_57GSWBIVv' },
+    { id: '1WiyJToRV6IKN_gwT6jlKwhI2OsH_szzh' },
+    { id: '1rZ5HaTzMbzm4LBjyYpiMyezS_km7MguA' },
   ],
 }
 
