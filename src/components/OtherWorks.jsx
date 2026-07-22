@@ -28,7 +28,7 @@ export default function OtherWorks({
 
   return (
     <section id="other-works" className="section">
-      <h2 className="section__title">{otherWorks.title}</h2>
+      <p className="section__eyebrow">{otherWorks.title}</p>
 
       {status === 'loading' && <p className="gallery__empty">Loading photos…</p>}
 
@@ -55,7 +55,17 @@ export default function OtherWorks({
             ))}
           </div>
 
-          <Gallery photos={photos} onSelect={setLightboxIndex} />
+          {/* key forces a re-mount so the fade replays when switching category */}
+          <div key={current.id} className="category-view">
+            <div className="category-head">
+              <h2 className="category-head__title">{current.name}</h2>
+              <span className="category-head__count">
+                {photos.length} photo{photos.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            <Gallery photos={photos} onSelect={setLightboxIndex} />
+          </div>
         </>
       )}
 
