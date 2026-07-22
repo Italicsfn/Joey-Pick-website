@@ -60,8 +60,9 @@ npm run preview
 ## "Other Works" — auto-loading photos from Google Drive
 
 Below the main gallery there's an **"Other Works"** area that loads photos straight
-from **public Google Drive folders**. Each folder becomes its own titled section
-(great for one folder per sport/category), and photos are shuffled for a fresh mix
+from **public Google Drive folders**. Each folder becomes a **category** (great for
+one folder per sport): pick a category from the "Other Works" dropdown in the nav,
+or from the tab pills in the section, and its photos show — shuffled for a fresh mix
 on each visit. Once it's set up you never touch the code again — just drop photos
 into a Drive folder and they appear on the site automatically.
 
