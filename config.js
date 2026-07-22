@@ -27,7 +27,7 @@ export const otherWorks = {
   // Heading shown above the whole area, and its nav link label.
   title: 'Other Works',
   // Free Google API key with the Drive API enabled. Empty = section hidden.
-  apiKey: '',
+  apiKey: 'AIzaSyDM_LGPP4uOy4vhCb-cMVzjw8hYpp050iM',
   // Shuffle photos within each section for a fresh, varied mix each visit.
   shuffle: true,
   // Each PUBLIC Drive folder = one section. Titled after the folder name.
