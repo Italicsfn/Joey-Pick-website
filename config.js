@@ -10,6 +10,30 @@ export const site = {
 }
 
 // ----------------------------------------------------------------------------
+//  "OTHER WORKS" — auto-loads photos from a public Google Drive folder.
+//  Drop photos into the Drive folder and they show up on the site. No uploads,
+//  no editing this list. Leave `apiKey` empty to hide this section entirely.
+//
+//  ONE-TIME SETUP (see README for step-by-step):
+//   1. Put photos in a Google Drive folder, then Share it as
+//      "Anyone with the link" (Viewer).
+//   2. Copy the folder ID from the share link:
+//        https://drive.google.com/drive/folders/THIS_LONG_ID_HERE?usp=sharing
+//      ...and add it to `folderIds` below.
+//   3. Create a free Google API key with the Drive API enabled, paste as apiKey.
+// ----------------------------------------------------------------------------
+export const otherWorks = {
+  // Heading shown above this section, and its nav link label.
+  title: 'Other Works',
+  // Free Google API key (Drive API enabled). Empty = section hidden.
+  apiKey: '',
+  // One or more PUBLIC Drive folder IDs. Photos load in filename order.
+  folderIds: [
+    // 'paste-your-folder-id-here',
+  ],
+}
+
+// ----------------------------------------------------------------------------
 //  CONTACT LINKS
 //  These power the floating "Contact" button in the bottom-right corner.
 //  Only links with a non-empty `url` are shown. Fill in your real handles.

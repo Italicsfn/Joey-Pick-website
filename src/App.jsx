@@ -3,6 +3,7 @@ import { site, photos } from '../config.js'
 import Navbar from './components/Navbar.jsx'
 import Gallery from './components/Gallery.jsx'
 import Lightbox from './components/Lightbox.jsx'
+import OtherWorks from './components/OtherWorks.jsx'
 import ContactButton from './components/ContactButton.jsx'
 
 export default function App() {
@@ -26,6 +27,8 @@ export default function App() {
 
         <Gallery photos={photos} onSelect={openAt} />
       </main>
+
+      <OtherWorks />
 
       {activeIndex !== null && (
         <Lightbox
