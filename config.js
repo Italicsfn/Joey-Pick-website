@@ -16,9 +16,9 @@ export const site = {
 // ----------------------------------------------------------------------------
 export const contact = {
   // Your email — used to build a mailto: link.
-  email: 'you@example.com',
+  email: 'johnathantran9999@gmail.com',
   // Full Instagram profile URL.
-  instagram: 'https://instagram.com/your_handle',
+  instagram: 'https://instagram.com/joe.jpg27',
   // Optional extras — leave as '' to hide them.
   twitter: '',
   linkedin: '',
@@ -34,4 +34,9 @@ export const contact = {
 // ----------------------------------------------------------------------------
 export const photos = [
   { src: '/photos/Photo 1.jpg', alt: 'Photo 1' },
+  { src: '/photos/Photo 2.jpg', alt: 'Photo 2' },
+  { src: '/photos/Photo 3.jpg', alt: 'Photo 3' },
+  { src: '/photos/Photo 4.jpg', alt: 'Photo 4' },
+  { src: '/photos/Photo 5.jpg', alt: 'Photo 5' },
+  { src: '/photos/Photo 6.jpg', alt: 'Photo 6' },
 ]
