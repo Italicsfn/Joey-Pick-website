@@ -33,10 +33,5 @@ export const contact = {
 //  Reorder the list to reorder the gallery. First item shows first.
 // ----------------------------------------------------------------------------
 export const photos = [
-  { src: '/photos/sample-01.svg', alt: 'Sample photo 1 — replace me' },
-  { src: '/photos/sample-02.svg', alt: 'Sample photo 2 — replace me' },
-  { src: '/photos/sample-03.svg', alt: 'Sample photo 3 — replace me' },
-  { src: '/photos/sample-04.svg', alt: 'Sample photo 4 — replace me' },
-  { src: '/photos/sample-05.svg', alt: 'Sample photo 5 — replace me' },
-  { src: '/photos/sample-06.svg', alt: 'Sample photo 6 — replace me' },
+  { src: '/photos/Photo 1.jpg', alt: 'Photo 1' },
 ]
